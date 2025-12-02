@@ -162,7 +162,7 @@ struct isotp_sock {
 	u32 frame_txtime;
 	u32 force_tx_stmin;
 	u32 force_rx_stmin;
-	u32 cfecho; /* consecutive frame echo tag */
+	int cfecho; /* consecutive frame echo tag */
 	struct tpcon rx, tx;
 	struct list_head notifier;
 	wait_queue_head_t wait;
@@ -782,6 +782,9 @@ static void isotp_send_cframe(struct isotp_sock *so)
 	can_skb_prv(skb)->ifindex = dev->ifindex;
 	can_skb_prv(skb)->skbcnt = 0;
 
+	/* set uid in tx skb to identify CF echo frames */
+	can_set_skb_uid(skb);
+
 	cf = (struct canfd_frame *)skb->data;
 	skb_put_zero(skb, so->ll.mtu);
 
@@ -803,7 +806,7 @@ static void isotp_send_cframe(struct isotp_sock *so)
 		pr_notice_once("can-isotp: cfecho is %08X != 0\n", so->cfecho);
 
 	/* set consecutive frame echo tag */
-	so->cfecho = *(u32 *)cf->data;
+	so->cfecho = can_skb_prv(skb)->skbcnt;
 
 	/* send frame with local echo enabled */
 	can_send_ret = can_send(skb, 1);
@@ -855,10 +858,9 @@ static void isotp_rcv_echo(struct sk_buff *skb, void *data)
 {
 	struct sock *sk = (struct sock *)data;
 	struct isotp_sock *so = isotp_sk(sk);
-	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 
 	/* only handle my own local echo CF/SF skb's (no FF!) */
-	if (skb->sk != sk || so->cfecho != *(u32 *)cf->data)
+	if (skb->sk != sk || so->cfecho != can_skb_prv(skb)->skbcnt)
 		return;
 
 	/* cancel local echo timeout */
@@ -1011,6 +1013,9 @@ static int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	can_skb_prv(skb)->ifindex = dev->ifindex;
 	can_skb_prv(skb)->skbcnt = 0;
 
+	/* set uid in tx skb to identify CF echo frames */
+	can_set_skb_uid(skb);
+
 	so->tx.len = size;
 	so->tx.idx = 0;
 
@@ -1047,7 +1052,7 @@ static int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 			cf->data[ae] |= size;
 
 		/* set CF echo tag for isotp_rcv_echo() (SF-mode) */
-		so->cfecho = *(u32 *)cf->data;
+		so->cfecho = can_skb_prv(skb)->skbcnt;
 	} else {
 		/* send first frame */
 
@@ -1064,7 +1069,7 @@ static int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 			so->txfc.bs = 0;
 
 			/* set CF echo tag for isotp_rcv_echo() (CF-mode) */
-			so->cfecho = *(u32 *)cf->data;
+			so->cfecho = can_skb_prv(skb)->skbcnt;
 		} else {
 			/* standard flow control check */
 			so->tx.state = ISOTP_WAIT_FIRST_FC;
