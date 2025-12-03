@@ -1251,6 +1251,23 @@ static int isotp_release(struct socket *sock)
 	return 0;
 }
 
+static bool isotp_invalid_canid(canid_t canid)
+{
+	canid_t sanitized_id = canid;
+
+	/* sanitize CAN identifier */
+	if (sanitized_id & CAN_EFF_FLAG)
+		sanitized_id &= (CAN_EFF_FLAG | CAN_EFF_MASK);
+	else
+		sanitized_id &= CAN_SFF_MASK;
+
+	/* give feedback on wrong CAN-ID value */
+	if (sanitized_id != canid)
+		return true;
+
+	return false;
+}
+
 static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int len)
 {
 	struct sockaddr_can *addr = (struct sockaddr_can *)uaddr;
@@ -1270,27 +1287,13 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 	if (addr->can_family != AF_CAN)
 		return -EINVAL;
 
-	/* sanitize tx CAN identifier */
-	if (tx_id & CAN_EFF_FLAG)
-		tx_id &= (CAN_EFF_FLAG | CAN_EFF_MASK);
-	else
-		tx_id &= CAN_SFF_MASK;
-
-	/* give feedback on wrong CAN-ID value */
-	if (tx_id != addr->can_addr.tp.tx_id)
+	/* check for correct tx CAN identifier */
+	if (isotp_invalid_canid(tx_id))
 		return -EINVAL;
 
-	/* sanitize rx CAN identifier (if needed) */
-	if (isotp_register_rxid(so)) {
-		if (rx_id & CAN_EFF_FLAG)
-			rx_id &= (CAN_EFF_FLAG | CAN_EFF_MASK);
-		else
-			rx_id &= CAN_SFF_MASK;
-
-		/* give feedback on wrong CAN-ID value */
-		if (rx_id != addr->can_addr.tp.rx_id)
-			return -EINVAL;
-	}
+	/* check for correct rx CAN identifier (if needed) */
+	if (isotp_register_rxid(so) && isotp_invalid_canid(rx_id))
+		return -EINVAL;
 
 	if (!addr->can_ifindex)
 		return -ENODEV;
