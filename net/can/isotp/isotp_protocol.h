@@ -27,4 +27,10 @@ static inline u32 isotp_bc_flags(struct isotp_sock *so)
 	return so->opt.flags & ISOTP_ALL_BC_FLAGS;
 }
 
+/* CAN XL link layer mode is enabled when this flag is set */
+static inline bool xlmode(struct isotp_sock *so)
+{
+	return (so->xl.tx_flags & CANXL_XLF);
+}
+
 #endif /* _ISOTP_PROTOCOL_H_ */

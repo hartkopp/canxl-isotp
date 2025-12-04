@@ -37,15 +37,55 @@
 /* can-isotp module parameter, see isotp.c */
 extern unsigned int max_pdu_size;
 
+/* calculate CAN protocol specific length for CAN sk_buffs */
+static int isotp_tx_skb_len(struct isotp_sock *so, unsigned int datalen)
+{
+	if (xlmode(so))
+		return CANXL_HDR_SIZE + datalen;
+	else
+		return so->ll.mtu;
+}
+
+/* fill CC/FD/XL frame and return the pointer to the frame data section */
+static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
+				 unsigned int datalen)
+{
+	/* all types of CAN frames start at skb->data */
+	cu_t *cu = (cu_t *)skb->data;
+
+	/* fill CAN XL frame */
+	if (xlmode(so)) {
+		cu->xl.prio = so->txid;
+		cu->xl.flags = so->xl.tx_flags; /* incl. SEC/RRS */
+		cu->xl.af = so->xl.tx_addr;
+		cu->xl.len = datalen;
+		cu->xl.sdt = CAN_CIA_ISO15765_2_SDT;
+		if (so->xl.tx_vcid)
+			cu->xl.prio |= (so->xl.tx_vcid << CANXL_VCID_OFFSET);
+
+		return (u8 *)&cu->xl.data;
+	}
+
+	/* fill CAN CC/FD frame */
+	cu->fd.can_id = so->txid;
+	cu->fd.flags = so->ll.tx_flags;
+	cu->fd.len = datalen;
+
+	return (u8 *)&cu->fd.data;
+}
+
 int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 {
 	struct net_device *dev;
 	struct sk_buff *nskb;
-	struct canfd_frame *ncf;
 	struct isotp_sock *so = isotp_sk(sk);
+	unsigned int datalen = ae + FC_CONTENT_SZ;
+	int skblen = isotp_tx_skb_len(so, datalen);
+	u8 *data;
 	int can_send_ret;
 
-	nskb = alloc_skb(so->ll.mtu + sizeof(struct can_skb_priv), gfp_any());
+	/* create & send flow control reply */
+	nskb = alloc_skb(skblen + sizeof(struct can_skb_priv), gfp_any());
 	if (!nskb)
 		return 1;
 
@@ -61,27 +101,23 @@ int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 
 	nskb->dev = dev;
 	can_skb_set_owner(nskb, sk);
-	ncf = (struct canfd_frame *)nskb->data;
-	skb_put_zero(nskb, so->ll.mtu);
+	skb_put_zero(nskb, skblen);
 
-	/* create & send flow control reply */
-	ncf->can_id = so->txid;
+	if (so->opt.flags & CAN_ISOTP_TX_PADDING)
+		datalen = CAN_MAX_DLEN;
 
-	if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
-		memset(ncf->data, so->opt.txpad_content, CAN_MAX_DLEN);
-		ncf->len = CAN_MAX_DLEN;
-	} else {
-		ncf->len = ae + FC_CONTENT_SZ;
-	}
+	/* fill CAN frame and return pointer to CAN frame data */
+	data = isotp_fill_frame_head(so, nskb, datalen);
 
-	ncf->data[ae] = N_PCI_FC | flowstatus;
-	ncf->data[ae + 1] = so->rxfc.bs;
-	ncf->data[ae + 2] = so->rxfc.stmin;
+	if (so->opt.flags & CAN_ISOTP_TX_PADDING)
+		memset(data, so->opt.txpad_content, CAN_MAX_DLEN);
+
+	*(data + ae) = N_PCI_FC | flowstatus;
+	*(data + ae + 1) = so->rxfc.bs;
+	*(data + ae + 2) = so->rxfc.stmin;
 
 	if (ae)
-		ncf->data[0] = so->opt.ext_address;
-
-	ncf->flags = so->ll.tx_flags;
+		*(data) = so->opt.ext_address;
 
 	can_send_ret = can_send(nskb, 1);
 	if (can_send_ret)

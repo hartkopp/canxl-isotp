@@ -37,6 +37,9 @@
 #define CAN_ISOTP_PADDING_MASK (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING | \
 				CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
 
+/* CAN CiA 611-1 Service Data Unit Type for ISO 15765-2 */
+#define CAN_CIA_ISO15765_2_SDT 0x09
+
 /* N_PCI type values in bits 7-4 of N_PCI bytes */
 #define N_PCI_SF 0x00	/* single frame */
 #define N_PCI_FF 0x10	/* first frame */
@@ -104,5 +107,12 @@ struct isotp_sock {
 	wait_queue_head_t wait;
 	spinlock_t rx_lock; /* protect single thread state machine */
 };
+
+/* CAN CC/FD/XL frame union */
+typedef union {
+	struct can_frame cc;
+	struct canfd_frame fd;
+	struct canxl_frame xl;
+} cu_t;
 
 #endif /* _ISOTP_DEFINES_H_ */
