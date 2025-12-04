@@ -71,112 +71,21 @@
 #include <linux/slab.h>
 #include <net/sock.h>
 #include <net/net_namespace.h>
+#include "isotp_defines.h"
 
 MODULE_DESCRIPTION("PF_CAN ISO 15765-2 transport protocol");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Oliver Hartkopp <socketcan@hartkopp.net>");
 MODULE_ALIAS("can-proto-6");
 
-#define ISOTP_MIN_NAMELEN CAN_REQUIRED_SIZE(struct sockaddr_can, can_addr.tp)
-
-#define SINGLE_MASK(id) (((id) & CAN_EFF_FLAG) ? \
-			 (CAN_EFF_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG) : \
-			 (CAN_SFF_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG))
-
-/* Since ISO 15765-2:2016 the CAN isotp protocol supports more than 4095
- * byte per ISO PDU as the FF_DL can take full 32 bit values (4 Gbyte).
- * We would need some good concept to handle this between user space and
- * kernel space. For now set the static buffer to something about 8 kbyte
- * to be able to test this new functionality.
- */
-#define DEFAULT_MAX_PDU_SIZE 8300
-
-/* maximum PDU size before ISO 15765-2:2016 extension was 4095 */
-#define MAX_12BIT_PDU_SIZE 4095
-
-/* limit the isotp pdu size from the optional module parameter to 1MByte */
-#define MAX_PDU_SIZE (1025 * 1024U)
-
 static unsigned int max_pdu_size __read_mostly = DEFAULT_MAX_PDU_SIZE;
 module_param(max_pdu_size, uint, 0444);
 MODULE_PARM_DESC(max_pdu_size, "maximum isotp pdu size (default "
 		 __stringify(DEFAULT_MAX_PDU_SIZE) ")");
 
-/* N_PCI type values in bits 7-4 of N_PCI bytes */
-#define N_PCI_SF 0x00	/* single frame */
-#define N_PCI_FF 0x10	/* first frame */
-#define N_PCI_CF 0x20	/* consecutive frame */
-#define N_PCI_FC 0x30	/* flow control */
-
-#define N_PCI_SZ 1	/* size of the PCI byte #1 */
-#define SF_PCI_SZ4 1	/* size of SingleFrame PCI including 4 bit SF_DL */
-#define SF_PCI_SZ8 2	/* size of SingleFrame PCI including 8 bit SF_DL */
-#define FF_PCI_SZ12 2	/* size of FirstFrame PCI including 12 bit FF_DL */
-#define FF_PCI_SZ32 6	/* size of FirstFrame PCI including 32 bit FF_DL */
-#define FC_CONTENT_SZ 3	/* flow control content size in byte (FS/BS/STmin) */
-
-#define ISOTP_CHECK_PADDING (CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
-#define ISOTP_ALL_BC_FLAGS (CAN_ISOTP_SF_BROADCAST | CAN_ISOTP_CF_BROADCAST)
-
-/* Flow Status given in FC frame */
-#define ISOTP_FC_CTS 0		/* clear to send */
-#define ISOTP_FC_WT 1		/* wait */
-#define ISOTP_FC_OVFLW 2	/* overflow */
-
-#define ISOTP_FC_TIMEOUT 1	/* 1 sec */
-#define ISOTP_ECHO_TIMEOUT 2	/* 2 secs */
-
-enum {
-	ISOTP_IDLE = 0,
-	ISOTP_WAIT_FIRST_FC,
-	ISOTP_WAIT_FC,
-	ISOTP_WAIT_DATA,
-	ISOTP_SENDING,
-	ISOTP_SHUTDOWN,
-};
-
-struct tpcon {
-	u8 *buf;
-	unsigned int buflen;
-	unsigned int len;
-	unsigned int idx;
-	u32 state;
-	u8 bs;
-	u8 sn;
-	u8 ll_dl;
-	u8 sbuf[DEFAULT_MAX_PDU_SIZE];
-};
-
-struct isotp_sock {
-	struct sock sk;
-	int bound;
-	int ifindex;
-	canid_t txid;
-	canid_t rxid;
-	ktime_t tx_gap;
-	ktime_t lastrxcf_tstamp;
-	struct hrtimer rxtimer, txtimer, txfrtimer;
-	struct can_isotp_options opt;
-	struct can_isotp_fc_options rxfc, txfc;
-	struct can_isotp_ll_options ll;
-	u32 frame_txtime;
-	u32 force_tx_stmin;
-	u32 force_rx_stmin;
-	int cfecho; /* consecutive frame echo tag */
-	struct tpcon rx, tx;
-	struct list_head notifier;
-	wait_queue_head_t wait;
-	spinlock_t rx_lock; /* protect single thread state machine */
-};
-
 static LIST_HEAD(isotp_notifier_list);
 static DEFINE_SPINLOCK(isotp_notifier_lock);
 static struct isotp_sock *isotp_busy_notifier;
-
-static inline struct isotp_sock *isotp_sk(const struct sock *sk)
-{
-	return (struct isotp_sock *)sk;
-}
 
 static u32 isotp_bc_flags(struct isotp_sock *so)
 {
