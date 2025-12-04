@@ -97,9 +97,4 @@ struct isotp_sock {
 	spinlock_t rx_lock; /* protect single thread state machine */
 };
 
-static inline struct isotp_sock *isotp_sk(const struct sock *sk)
-{
-	return (struct isotp_sock *)sk;
-}
-
 #endif /* _ISOTP_DEFINES_H_ */
