@@ -236,6 +236,17 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 	if (isotp_register_rxid(so) && isotp_invalid_canid(rx_id))
 		return -EINVAL;
 
+
+	if (so->xl.tx_flags & CANXL_XLF) {
+		/* don't enable padding options for CAN XL link layer */
+		if (so->opt.flags & CAN_ISOTP_PADDING_MASK)
+			return -EINVAL;
+
+		/* CAN XL priority field is only 11 bit */
+		if ((tx_id | rx_id) & CAN_EFF_FLAG)
+			return -EINVAL;
+	}
+
 	if (!addr->can_ifindex)
 		return -ENODEV;
 
@@ -405,8 +416,47 @@ static int isotp_setsockopt_locked(struct socket *sock, int level, int optname,
 
 			memcpy(&so->ll, &ll, sizeof(ll));
 
+			/* configured CC/FD LL opts -> disable XL LL opts */
+			so->xl.tx_flags = 0;
+
 			/* set ll_dl for tx path to similar place as for rx */
 			so->tx.ll_dl = ll.tx_dl;
+		} else {
+			return -EINVAL;
+		}
+		break;
+
+	case CAN_ISOTP_XL_OPTS:
+		if (optlen == sizeof(struct can_isotp_xl_options)) {
+			struct can_isotp_xl_options xl;
+
+			if (copy_from_sockptr(&xl, optval, optlen))
+				return -EFAULT;
+
+			/* check for correct/required CAN XL flags */
+			if (!(xl.tx_flags & CANXL_XLF) ||
+			    (xl.tx_flags & ~CANXL_FLAGS_MASK))
+				return -EINVAL;
+
+			if (!(xl.rx_flags & CANXL_XLF) ||
+			    (xl.rx_flags & ~CANXL_FLAGS_MASK))
+				return -EINVAL;
+
+			/* check valid tx_dl range for CAN XL link layer */
+			if (xl.tx_dl < CAN_MAX_DLEN || xl.tx_dl > CANXL_MAX_DLEN)
+				return -EINVAL;
+
+			/* check for correct CAN identifier */
+			if (isotp_invalid_canid(xl.tx_addr))
+				return -EINVAL;
+
+			if (isotp_invalid_canid(xl.rx_addr))
+				return -EINVAL;
+
+			memcpy(&so->xl, &xl, sizeof(xl));
+
+			/* set ll_dl for tx path to similar place as for rx */
+			so->tx.ll_dl = xl.tx_dl;
 		} else {
 			return -EINVAL;
 		}
@@ -474,6 +524,11 @@ static int isotp_getsockopt(struct socket *sock, int level, int optname,
 	case CAN_ISOTP_LL_OPTS:
 		len = min_t(int, len, sizeof(struct can_isotp_ll_options));
 		val = &so->ll;
+		break;
+
+	case CAN_ISOTP_XL_OPTS:
+		len = min_t(int, len, sizeof(struct can_isotp_xl_options));
+		val = &so->xl;
 		break;
 
 	default:
@@ -576,6 +631,9 @@ static int isotp_init(struct sock *sk)
 
 	/* set ll_dl for tx path to similar place as for rx */
 	so->tx.ll_dl = so->ll.tx_dl;
+
+	/* CAN XL link layer options disabled by default */
+	so->xl.tx_flags = 0;
 
 	so->rx.state = ISOTP_IDLE;
 	so->tx.state = ISOTP_IDLE;
