@@ -30,6 +30,13 @@
 /* limit the isotp pdu size from the optional module parameter to 1MByte */
 #define MAX_PDU_SIZE (1025 * 1024U)
 
+/* valid bits that can/must be set in struct canxl_frame.flags */
+#define CANXL_FLAGS_MASK (CANXL_XLF | CANXL_RRS | CANXL_SEC)
+
+/* to check for disabled padding options for the CAN XL link layer */
+#define CAN_ISOTP_PADDING_MASK (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING | \
+				CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
+
 /* N_PCI type values in bits 7-4 of N_PCI bytes */
 #define N_PCI_SF 0x00	/* single frame */
 #define N_PCI_FF 0x10	/* first frame */
@@ -69,9 +76,9 @@ struct tpcon {
 	unsigned int len;
 	unsigned int idx;
 	u32 state;
+	u32 ll_dl;
 	u8 bs;
 	u8 sn;
-	u8 ll_dl;
 	u8 sbuf[DEFAULT_MAX_PDU_SIZE];
 };
 
@@ -87,6 +94,7 @@ struct isotp_sock {
 	struct can_isotp_options opt;
 	struct can_isotp_fc_options rxfc, txfc;
 	struct can_isotp_ll_options ll;
+	struct can_isotp_xl_options xl;
 	u32 frame_txtime;
 	u32 force_tx_stmin;
 	u32 force_rx_stmin;
