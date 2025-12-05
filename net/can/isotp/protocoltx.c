@@ -174,15 +174,22 @@ void isotp_send_cframe(struct isotp_sock *so)
 	struct sock *sk = &so->sk;
 	struct sk_buff *skb;
 	struct net_device *dev;
-	struct canfd_frame *cf;
-	int can_send_ret;
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
+	int pcilen = N_PCI_SZ + ae;
+	int space = so->tx.ll_dl - pcilen;
+	int num = min_t(int, so->tx.len - so->tx.idx, space);
+	unsigned int datalen = num + pcilen;
+	int skblen = isotp_tx_skb_len(so, datalen);
+	int padlength = 0;
+	u8 padval;
+	u8 *data;
+	int can_send_ret;
 
 	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev)
 		return;
 
-	skb = alloc_skb(so->ll.mtu + sizeof(struct can_skb_priv), GFP_ATOMIC);
+	skb = alloc_skb(skblen + sizeof(struct can_skb_priv), GFP_ATOMIC);
 	if (!skb) {
 		dev_put(dev);
 		return;
@@ -195,18 +202,43 @@ void isotp_send_cframe(struct isotp_sock *so)
 	/* set uid in tx skb to identify CF echo frames */
 	can_set_skb_uid(skb);
 
-	cf = (struct canfd_frame *)skb->data;
-	skb_put_zero(skb, so->ll.mtu);
+	skb_put_zero(skb, skblen);
 
-	/* create consecutive frame */
-	isotp_fill_dataframe(cf, so, ae, 0);
+	/* increase length for padding of CAN CC/FD frames */
+	if ((num < space) && !xlmode(so)) {
+		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
+			/* user requested padding */
+			padlength = padlen(datalen);
+			datalen = padlength;
+			padval = so->opt.txpad_content;
+		} else if (datalen > CAN_MAX_DLEN) {
+			/* mandatory padding for CAN FD frames */
+			padlength = padlen(datalen);
+			datalen = padlength;
+			padval = CAN_ISOTP_DEFAULT_PAD_CONTENT;
+		}
+	}
+
+	/* fill CAN frame and return pointer to CAN frame data */
+	data = isotp_fill_frame_head(so, skb, datalen);
+
+	if (padlength)
+		memset(data, padval, datalen);
+
+	/* copy data behind the PCI */
+	memcpy(data + pcilen, so->tx.buf + so->tx.idx, num);
+	so->tx.idx += num;
+
+	/* add extended address */
+	if (ae)
+		*(data) = so->opt.ext_address;
 
 	/* place consecutive frame N_PCI in appropriate index */
-	cf->data[ae] = N_PCI_CF | so->tx.sn++;
+	*(data + ae) = N_PCI_CF | so->tx.sn++;
+
+	/* update protocol counters */
 	so->tx.sn %= 16;
 	so->tx.bs++;
-
-	cf->flags = so->ll.tx_flags;
 
 	skb->dev = dev;
 	can_skb_set_owner(skb, sk);
