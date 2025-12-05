@@ -45,10 +45,16 @@
 #define N_PCI_FF 0x10	/* first frame */
 #define N_PCI_CF 0x20	/* consecutive frame */
 #define N_PCI_FC 0x30	/* flow control */
+#define N_PCI_MASK 0xF0	/* to mask the N_PCI type value */
+
+#define N_PCI_SF_XL 8	/* SF length representation ID flag */
+#define N_PCI_SF_XL8 8	/* SF length representation ID for 8 bit values */
+#define N_PCI_SF_XL16 9	/* SF length representation ID for 16 bit values */
 
 #define N_PCI_SZ 1	/* size of the PCI byte #1 */
 #define SF_PCI_SZ4 1	/* size of SingleFrame PCI including 4 bit SF_DL */
 #define SF_PCI_SZ8 2	/* size of SingleFrame PCI including 8 bit SF_DL */
+#define SF_PCI_SZ16 3	/* size of SingleFrame PCI including 16 bit SF_DL */
 #define FF_PCI_SZ12 2	/* size of FirstFrame PCI including 12 bit FF_DL */
 #define FF_PCI_SZ32 6	/* size of FirstFrame PCI including 32 bit FF_DL */
 #define FC_CONTENT_SZ 3	/* flow control content size in byte (FS/BS/STmin) */
