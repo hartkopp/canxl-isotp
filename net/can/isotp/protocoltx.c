@@ -339,34 +339,28 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 			*(aepci + ae + 1) = (u8)(so->tx.len);
 			aepcilen = SF_PCI_SZ8 + ae;
 
-			/* use new SF length representation ID for CAN XL */
+			/* set SF length CAN XL flag in XL mode */
 			if (xlmode(so))
-				*(aepci + ae) |= N_PCI_SF_XL8;
+				*(aepci + ae) |= N_PCI_SF_XL;
 		}
 
 		return aepcilen;
 	}
 
-	if ((so->tx.len < 256) && (so->tx.len <= so->tx.ll_dl - SF_PCI_SZ8 - ae)) {
-		/* data fits into N_PCI_SF_XL8 8 bit length PDU */
-		if (ae)
-			*(aepci) = so->opt.ext_address;
-
-		*(aepci + ae) = N_PCI_SF | N_PCI_SF_XL8;
-		*(aepci + ae + 1) = (u8)so->tx.len;
-		aepcilen = SF_PCI_SZ8 + ae;
-	} else if (so->tx.len <= so->tx.ll_dl - SF_PCI_SZ16 - ae) {
-		/* data fits into N_PCI_SF_XL16 16 bit length PDU? */
-		if (ae)
-			*(aepci) = so->opt.ext_address;
-
-		*(aepci + ae) = N_PCI_SF | N_PCI_SF_XL16;
-		*(aepci + ae + 1) = (u8)(so->tx.len >> 8) & 0xFFU;
-		*(aepci + ae + 2) = (u8)so->tx.len & 0xFFU;
-		aepcilen = SF_PCI_SZ16 + ae;
-	} else {
+	/* CAN XL SF PCI with 11 bit data length */
+	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ11 - ae) {
 		/* FF */
 		aepcilen = isotp_ff_pci(so, aepci);
+	} else {
+		/* data fits into N_PCI_SF_XL 11 bit length PDU */
+		if (ae)
+			*(aepci) = so->opt.ext_address;
+
+		/* follow 12 bit FF_DL notation for 11 bit XL SF DL */
+		*(aepci + ae) = (u8)(so->tx.len >> 8);
+		*(aepci + ae) |=  (N_PCI_SF | N_PCI_SF_XL);
+		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
+		aepcilen = SF_PCI_SZ11 + ae;
 	}
 
 	return aepcilen;
