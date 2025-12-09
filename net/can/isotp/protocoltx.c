@@ -148,11 +148,18 @@ void isotp_send_cframe(struct isotp_sock *so)
 	int space = so->tx.ll_dl - pcilen;
 	int num = min_t(int, so->tx.len - so->tx.idx, space);
 	unsigned int datalen = num + pcilen;
-	int skblen = isotp_tx_skb_len(so, datalen);
+	int skblen;
 	int padlength = 0;
 	u8 padval;
 	u8 *data;
 	int can_send_ret;
+
+	/* increase skb->len for CAN XL padding with TX_DL=8 only */
+	if ((num < space) && xlmode(so) &&
+	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
+		skblen = isotp_tx_skb_len(so, CAN_MAX_DLEN);
+	else
+		skblen = isotp_tx_skb_len(so, datalen);
 
 	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev)
@@ -174,13 +181,13 @@ void isotp_send_cframe(struct isotp_sock *so)
 	skb_put_zero(skb, skblen);
 
 	/* increase length for padding of CAN CC/FD frames */
-	if ((num < space) && !xlmode(so)) {
+	if (num < space) {
 		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
-			/* user requested padding */
+			/* user requested CC/FD padding (or XL with TX_DL=8) */
 			padlength = padlen(datalen);
 			datalen = padlength;
 			padval = so->opt.txpad_content;
-		} else if (datalen > CAN_MAX_DLEN) {
+		} else if ((datalen > CAN_MAX_DLEN) && !xlmode(so)) {
 			/* mandatory padding for CAN FD frames */
 			padlength = padlen(datalen);
 			datalen = padlength;
@@ -325,42 +332,31 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		return aepcilen;
 	}
 
-	/* check for CAN FD SF PCI with 8 bit data length 7/8 .. 63 */
-	if (so->tx.ll_dl <= CANFD_MAX_DLEN) {
-
-		if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ8 - ae) {
-			/* FF */
-			aepcilen = isotp_ff_pci(so, aepci);
-		} else {
-			if (ae)
-				*(aepci) = so->opt.ext_address;
-
-			*(aepci + ae) = N_PCI_SF;
-			*(aepci + ae + 1) = (u8)(so->tx.len);
-			aepcilen = SF_PCI_SZ8 + ae;
-
-			/* set SF length CAN XL flag in XL mode */
-			if (xlmode(so))
-				*(aepci + ae) |= N_PCI_SF_XL;
-		}
-
-		return aepcilen;
-	}
-
-	/* CAN XL SF PCI with 11 bit data length */
-	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ11 - ae) {
+	/* TX_DL > 8 => CAN CC and CAN XL have the same kind of SF PCI length
+	 * extension. So we can check for FF segmentation with SF_PCI_SZ8
+	 */
+	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ8 - ae) {
 		/* FF */
 		aepcilen = isotp_ff_pci(so, aepci);
-	} else {
-		/* data fits into N_PCI_SF_XL 11 bit length PDU */
+	} else if (so->tx.len <= CAN_MAX_DLEN - SF_PCI_SZ4 - ae) {
+		/* short PDU with CAN CC length information 1 .. 6/7 byte */
 		if (ae)
 			*(aepci) = so->opt.ext_address;
 
-		/* follow 12 bit FF_DL notation for 11 bit XL SF DL */
-		*(aepci + ae) = (u8)(so->tx.len >> 8);
-		*(aepci + ae) |=  (N_PCI_SF | N_PCI_SF_XL);
+		*(aepci + ae) = (u8)(so->tx.len) | N_PCI_SF;
+		aepcilen = SF_PCI_SZ4 + ae;
+	} else {
+		if (ae)
+			*(aepci) = so->opt.ext_address;
+
+		/* follow 12 bit FF_DL notation for 8/11 bit FD/XL SF DL */
+		*(aepci + ae) = (u8)(so->tx.len >> 8) | N_PCI_SF;
 		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
-		aepcilen = SF_PCI_SZ11 + ae;
+		aepcilen = SF_PCI_SZ8 + ae;
+
+		/* set SF length CAN XL flag in XL mode */
+		if (xlmode(so))
+			*(aepci + ae) |= N_PCI_SF_XL;
 	}
 
 	return aepcilen;
@@ -377,8 +373,12 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	s64 hrtimer_sec = ISOTP_ECHO_TIMEOUT;
 	u8 aepci[1 + FF_PCI_SZ32];
 	int aepcilen;
+	int space;
+	int num;
 	int datalen;
 	int skblen;
+	int padlength = 0;
+	u8 padval;
 	u8 *data;
 	int err;
 
@@ -422,8 +422,16 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	so->tx.idx = 0;
 
 	aepcilen = isotp_sf_ff_pci(so, aepci);
-	datalen = min_t(unsigned int, size + aepcilen, so->tx.ll_dl);
-	skblen = isotp_tx_skb_len(so, datalen);
+	space = so->tx.ll_dl - aepcilen;
+	num = min_t(int, size, space);
+	datalen = num + aepcilen;
+
+	/* increase skb->len for CAN XL padding with TX_DL=8 only */
+	if ((num < space) && xlmode(so) &&
+	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
+		skblen = isotp_tx_skb_len(so, CAN_MAX_DLEN);
+	else
+		skblen = isotp_tx_skb_len(so, datalen);
 
 	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev) {
@@ -447,6 +455,21 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 
 	skb_put_zero(skb, skblen);
 
+	/* check for single frame padding (N_PCI_SF = 0) */
+	if (!(aepci[ae] & N_PCI_MASK) && (num < space)) {
+		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
+			/* user requested CC/FD padding (or XL with TX_DL=8) */
+			padlength = padlen(datalen);
+			datalen = padlength;
+			padval = so->opt.txpad_content;
+		} else if ((datalen > CAN_MAX_DLEN) && !xlmode(so)) {
+			/* mandatory padding for CAN FD frames */
+			padlength = padlen(datalen);
+			datalen = padlength;
+			padval = CAN_ISOTP_DEFAULT_PAD_CONTENT;
+		}
+	}
+
 	/* fill CAN frame and return pointer to CAN frame data */
 	data = isotp_fill_frame_head(so, skb, datalen);
 
@@ -456,23 +479,8 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 
 	/* check for single frame (N_PCI_SF = 0) */
 	if (!(aepci[ae] & N_PCI_MASK)) {
-		/* check for CC/FD single frame (N_PCI_SF_XL flag = 0) */
-		if (!(aepci[ae] & N_PCI_SF_XL)) {
-			/* CAN CC/FD Single Frame */
-			struct canfd_frame *cf = (struct canfd_frame *)skb->data;
-
-			if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
-				/* user requested padding */
-				cf->len = padlen(cf->len);
-				memset(data, so->opt.txpad_content, cf->len);
-			} else if (cf->len > CAN_MAX_DLEN) {
-				/* mandatory padding for CAN FD frames */
-				cf->len = padlen(cf->len);
-				memset(data, CAN_ISOTP_DEFAULT_PAD_CONTENT,
-				       cf->len);
-			}
-
-		}
+		if (padlength)
+			memset(data, padval, datalen);
 
 		/* copy AE and PCI information */
 		memcpy(data, aepci, aepcilen);
