@@ -13,7 +13,7 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size);
 void isotp_send_cframe(struct isotp_sock *so);
 int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus);
 void isotp_rcv_echo(struct sk_buff *skb, void *data);
-void isotp_rcv(struct sk_buff *skb, void *data);
+void isotp_rcv(struct sk_buff *skb, void *skdata);
 bool isotp_register_rxid(struct isotp_sock *so);
 u8 padlen(u8 datalen);
 
