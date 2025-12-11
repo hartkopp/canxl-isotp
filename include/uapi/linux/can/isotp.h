@@ -192,8 +192,9 @@ struct can_isotp_xl_options {
 
 /* link layer default values => make use of Classical CAN frames */
 
+#define CAN_ISOTP_MIN_TX_DL		CAN_MAX_DLEN
 #define CAN_ISOTP_DEFAULT_LL_MTU	CAN_MTU
-#define CAN_ISOTP_DEFAULT_LL_TX_DL	CAN_MAX_DLEN
+#define CAN_ISOTP_DEFAULT_LL_TX_DL	CAN_ISOTP_MIN_TX_DL
 #define CAN_ISOTP_DEFAULT_LL_TX_FLAGS	0
 
 /*

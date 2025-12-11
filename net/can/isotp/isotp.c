@@ -240,7 +240,7 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 	if (so->xl.tx_flags & CANXL_XLF) {
 		/* CAN XL padding only for TX_DL=8 legacy use cases */
 		if ((so->opt.flags & CAN_ISOTP_PADDING_MASK) &&
-		    (so->tx.ll_dl > CAN_MAX_DLEN))
+		    (so->tx.ll_dl > CAN_ISOTP_MIN_TX_DL))
 			return -EINVAL;
 
 		/* CAN XL priority field is only 11 bit */
@@ -444,7 +444,7 @@ static int isotp_setsockopt_locked(struct socket *sock, int level, int optname,
 				return -EINVAL;
 
 			/* check valid tx_dl range for CAN XL link layer */
-			if (xl.tx_dl < CAN_MAX_DLEN || xl.tx_dl > CANXL_MAX_DLEN)
+			if (xl.tx_dl < CAN_ISOTP_MIN_TX_DL || xl.tx_dl > CANXL_MAX_DLEN)
 				return -EINVAL;
 
 			/* check for correct CAN identifier */
