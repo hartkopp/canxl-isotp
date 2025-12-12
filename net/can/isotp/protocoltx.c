@@ -152,8 +152,8 @@ void isotp_send_cframe(struct isotp_sock *so)
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
 	int pcilen = N_PCI_SZ + ae;
 	int space = so->tx.ll_dl - pcilen;
-	int num = min_t(int, so->tx.len - so->tx.idx, space);
-	unsigned int datalen = num + pcilen;
+	int reqlen = min_t(int, so->tx.len - so->tx.idx, space);
+	unsigned int datalen = reqlen + pcilen;
 	int skblen;
 	int padlength = 0;
 	u8 padval;
@@ -161,7 +161,7 @@ void isotp_send_cframe(struct isotp_sock *so)
 	int can_send_ret;
 
 	/* increase skb->len for CAN XL padding with TX_DL=8 only */
-	if ((num < space) && xlmode(so) &&
+	if ((reqlen < space) && xlmode(so) &&
 	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
 		skblen = isotp_tx_skb_len(so, CAN_ISOTP_MIN_TX_DL);
 	else
@@ -187,7 +187,7 @@ void isotp_send_cframe(struct isotp_sock *so)
 	skb_put_zero(skb, skblen);
 
 	/* increase length for padding of CAN CC/FD frames */
-	if (num < space) {
+	if (reqlen < space) {
 		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
 			/* user requested CC/FD padding (or XL with TX_DL=8) */
 			padlength = padlen(datalen);
@@ -208,8 +208,8 @@ void isotp_send_cframe(struct isotp_sock *so)
 		memset(data, padval, datalen);
 
 	/* copy data behind the PCI */
-	memcpy(data + pcilen, so->tx.buf + so->tx.idx, num);
-	so->tx.idx += num;
+	memcpy(data + pcilen, so->tx.buf + so->tx.idx, reqlen);
+	so->tx.idx += reqlen;
 
 	/* add extended address */
 	if (ae)
@@ -380,7 +380,7 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	u8 aepci[1 + FF_PCI_SZ32];
 	int aepcilen;
 	int space;
-	int num;
+	int reqlen;
 	int datalen;
 	int skblen;
 	int padlength = 0;
@@ -429,11 +429,11 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 
 	aepcilen = isotp_sf_ff_pci(so, aepci);
 	space = so->tx.ll_dl - aepcilen;
-	num = min_t(int, size, space);
-	datalen = num + aepcilen;
+	reqlen = min_t(int, size, space);
+	datalen = reqlen + aepcilen;
 
 	/* increase skb->len for CAN XL padding with TX_DL=8 only */
-	if ((num < space) && xlmode(so) &&
+	if ((reqlen < space) && xlmode(so) &&
 	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
 		skblen = isotp_tx_skb_len(so, CAN_ISOTP_MIN_TX_DL);
 	else
@@ -462,7 +462,7 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	skb_put_zero(skb, skblen);
 
 	/* check for single frame padding (N_PCI_SF = 0) */
-	if (!(aepci[ae] & N_PCI_MASK) && (num < space)) {
+	if (!(aepci[ae] & N_PCI_MASK) && (reqlen < space)) {
 		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
 			/* user requested CC/FD padding (or XL with TX_DL=8) */
 			padlength = padlen(datalen);
