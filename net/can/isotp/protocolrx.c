@@ -78,7 +78,7 @@ u8 padlen(u8 datalen)
 }
 
 /* check for length optimization and return true when the check fails */
-static bool check_optimized(unsigned int datalen, int start_index)
+static bool chk_optimized_fail(unsigned int datalen, int start_index)
 {
 	/* for CAN_DL <= 8 the start_index is equal to the CAN_DL as the
 	 * padding would start at this point. E.g. if the padding would
@@ -98,15 +98,15 @@ static bool check_optimized(unsigned int datalen, int start_index)
 }
 
 /* check padding and return true when the check fails */
-static bool check_pad(struct isotp_sock *so, u8 *data, unsigned int datalen,
-		      int start_index, u8 content)
+static bool chk_pad_fail(struct isotp_sock *so, u8 *data, unsigned int datalen,
+			 int start_index, u8 content)
 {
 	int i;
 
 	/* no RX_PADDING value => check length of optimized frame length */
 	if (!(so->opt.flags & CAN_ISOTP_RX_PADDING)) {
 		if (so->opt.flags & CAN_ISOTP_CHK_PAD_LEN)
-			return check_optimized(datalen, start_index);
+			return chk_optimized_fail(datalen, start_index);
 
 		/* no valid test against empty value => ignore frame */
 		return true;
@@ -140,8 +140,8 @@ static void isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
 
 	if ((datalen < ae + FC_CONTENT_SZ) ||
 	    ((so->opt.flags & ISOTP_CHECK_PADDING) &&
-	     check_pad(so, data, datalen, ae + FC_CONTENT_SZ,
-		       so->opt.rxpad_content))) {
+	     chk_pad_fail(so, data, datalen, ae + FC_CONTENT_SZ,
+			  so->opt.rxpad_content))) {
 		/* malformed PDU - report 'not a data message' */
 		sk->sk_err = EBADMSG;
 		if (!sock_flag(sk, SOCK_DEAD))
@@ -225,7 +225,7 @@ static void isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
 		return;
 
 	if ((so->opt.flags & ISOTP_CHECK_PADDING) &&
-	    check_pad(so, data, datalen, pcilen + sf_dl, so->opt.rxpad_content)) {
+	    chk_pad_fail(so, data, datalen, pcilen + sf_dl, so->opt.rxpad_content)) {
 		/* malformed PDU - report 'not a data message' */
 		sk->sk_err = EBADMSG;
 		if (!sock_flag(sk, SOCK_DEAD))
@@ -383,7 +383,7 @@ static void isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 		so->rx.state = ISOTP_IDLE;
 
 		if ((so->opt.flags & ISOTP_CHECK_PADDING) &&
-		    check_pad(so, data, datalen, i + 1, so->opt.rxpad_content)) {
+		    chk_pad_fail(so, data, datalen, i + 1, so->opt.rxpad_content)) {
 			/* malformed PDU - report 'not a data message' */
 			sk->sk_err = EBADMSG;
 			if (!sock_flag(sk, SOCK_DEAD))
