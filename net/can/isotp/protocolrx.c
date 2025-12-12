@@ -127,14 +127,14 @@ static bool check_pad(struct isotp_sock *so, u8 *data, unsigned int datalen,
 	return false;
 }
 
-static int isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
+static void isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
 {
 	struct sock *sk = &so->sk;
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
 
 	if (so->tx.state != ISOTP_WAIT_FC &&
 	    so->tx.state != ISOTP_WAIT_FIRST_FC)
-		return 0;
+		return;
 
 	hrtimer_cancel(&so->txtimer);
 
@@ -149,7 +149,7 @@ static int isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
 
 		so->tx.state = ISOTP_IDLE;
 		wake_up_interruptible(&so->wait);
-		return 1;
+		return;
 	}
 
 	/* get static/dynamic communication params from first/every FC frame */
@@ -208,11 +208,12 @@ static int isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
 		so->tx.state = ISOTP_IDLE;
 		wake_up_interruptible(&so->wait);
 	}
-	return 0;
+
+	return;
 }
 
-static int isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
-			int pcilen, struct sk_buff *skb, unsigned int sf_dl)
+static void isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
+			 int pcilen, struct sk_buff *skb, unsigned int sf_dl)
 {
 	struct isotp_sock *so = isotp_sk(sk);
 	struct sk_buff *nskb;
@@ -221,7 +222,7 @@ static int isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
 	so->rx.state = ISOTP_IDLE;
 
 	if (!sf_dl || sf_dl > datalen - pcilen)
-		return 1;
+		return;
 
 	if ((so->opt.flags & ISOTP_CHECK_PADDING) &&
 	    check_pad(so, data, datalen, pcilen + sf_dl, so->opt.rxpad_content)) {
@@ -229,22 +230,22 @@ static int isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
 		sk->sk_err = EBADMSG;
 		if (!sock_flag(sk, SOCK_DEAD))
 			sk_error_report(sk);
-		return 1;
+		return;
 	}
 
 	nskb = alloc_skb(sf_dl, gfp_any());
 	if (!nskb)
-		return 1;
+		return;
 
 	memcpy(skb_put(nskb, sf_dl), data + pcilen, sf_dl);
 
 	nskb->tstamp = skb->tstamp;
 	nskb->dev = skb->dev;
 	isotp_rcv_skb(nskb, sk);
-	return 0;
+	return;
 }
 
-static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
+static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 {
 	struct isotp_sock *so = isotp_sk(sk);
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
@@ -257,7 +258,7 @@ static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 
 	/* get the used sender LL_DL from the (first) CAN frame data length */
 	if (datalen < CAN_ISOTP_MIN_TX_DL)
-		return 1;
+		return;
 
 	if (xlmode(so))
 		so->rx.ll_dl = datalen;
@@ -266,7 +267,7 @@ static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 
 	/* CAN FD: the first frame has to use the entire frame up to LL_DL length */
 	if (datalen != so->rx.ll_dl)
-		return 1;
+		return;
 
 	/* get the FF_DL */
 	so->rx.len = (*(data + ae) & 0x0F) << 8;
@@ -288,7 +289,7 @@ static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 	off = (so->rx.ll_dl > CAN_ISOTP_MIN_TX_DL) ? 1 : 0;
 
 	if (so->rx.len + ae + off + ff_pci_sz < so->rx.ll_dl)
-		return 1;
+		return;
 
 	/* PDU size > default => try max_pdu_size */
 	if (so->rx.len > so->rx.buflen && so->rx.buflen < max_pdu_size) {
@@ -303,7 +304,7 @@ static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 	if (so->rx.len > so->rx.buflen) {
 		/* send FC frame with overflow status */
 		isotp_send_fc(sk, ae, ISOTP_FC_OVFLW);
-		return 1;
+		return;
 	}
 
 	/* copy the first received data bytes */
@@ -317,15 +318,16 @@ static int isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 
 	/* no creation of flow control frames */
 	if (so->opt.flags & CAN_ISOTP_LISTEN_MODE)
-		return 0;
+		return;
 
 	/* send our first FC frame */
 	isotp_send_fc(sk, ae, ISOTP_FC_CTS);
-	return 0;
+
+	return;
 }
 
-static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
-			struct sk_buff *skb)
+static void isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
+			 struct sk_buff *skb)
 {
 	struct isotp_sock *so = isotp_sk(sk);
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
@@ -333,13 +335,13 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 	int i;
 
 	if (so->rx.state != ISOTP_WAIT_DATA)
-		return 0;
+		return;
 
 	/* drop if timestamp gap is less than force_rx_stmin nano secs */
 	if (so->opt.flags & CAN_ISOTP_FORCE_RXSTMIN) {
 		if (ktime_to_ns(ktime_sub(skb->tstamp, so->lastrxcf_tstamp)) <
 		    so->force_rx_stmin)
-			return 0;
+			return;
 
 		so->lastrxcf_tstamp = skb->tstamp;
 	}
@@ -348,13 +350,13 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 
 	/* CFs are never longer than the FF */
 	if (datalen > so->rx.ll_dl)
-		return 1;
+		return;
 
 	/* CFs have usually the LL_DL length */
 	if (datalen < so->rx.ll_dl) {
 		/* this is only allowed for the last CF */
 		if (so->rx.len - so->rx.idx > so->rx.ll_dl - ae - N_PCI_SZ)
-			return 1;
+			return;
 	}
 
 	if ((*(data + ae) & 0x0F) != so->rx.sn) {
@@ -365,7 +367,7 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 
 		/* reset rx state */
 		so->rx.state = ISOTP_IDLE;
-		return 1;
+		return;
 	}
 	so->rx.sn++;
 	so->rx.sn %= 16;
@@ -386,12 +388,12 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 			sk->sk_err = EBADMSG;
 			if (!sock_flag(sk, SOCK_DEAD))
 				sk_error_report(sk);
-			return 1;
+			return;
 		}
 
 		nskb = alloc_skb(so->rx.len, gfp_any());
 		if (!nskb)
-			return 1;
+			return;
 
 		memcpy(skb_put(nskb, so->rx.len), so->rx.buf,
 		       so->rx.len);
@@ -399,7 +401,7 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 		nskb->tstamp = skb->tstamp;
 		nskb->dev = skb->dev;
 		isotp_rcv_skb(nskb, sk);
-		return 0;
+		return;
 	}
 
 	/* perform blocksize handling, if enabled */
@@ -407,16 +409,16 @@ static int isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 		/* start rx timeout watchdog */
 		hrtimer_start(&so->rxtimer, ktime_set(ISOTP_FC_TIMEOUT, 0),
 			      HRTIMER_MODE_REL_SOFT);
-		return 0;
+		return;
 	}
 
 	/* no creation of flow control frames */
 	if (so->opt.flags & CAN_ISOTP_LISTEN_MODE)
-		return 0;
+		return;
 
 	/* we reached the specified blocksize so->rxfc.bs */
 	isotp_send_fc(sk, ae, ISOTP_FC_CTS);
-	return 0;
+	return;
 }
 
 /* check CC/FD/XL frame and return the pointer to the frame data section */
