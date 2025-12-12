@@ -74,7 +74,7 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	return (u8 *)&cu->fd.data;
 }
 
-int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
+void isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 {
 	struct net_device *dev;
 	struct sk_buff *nskb;
@@ -93,12 +93,12 @@ int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 	/* create & send flow control reply */
 	nskb = alloc_skb(skblen + sizeof(struct can_skb_priv), gfp_any());
 	if (!nskb)
-		return 1;
+		return;
 
 	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev) {
 		kfree_skb(nskb);
-		return 1;
+		return;
 	}
 
 	can_skb_reserve(nskb);
@@ -141,7 +141,8 @@ int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 	/* start rx timeout watchdog */
 	hrtimer_start(&so->rxtimer, ktime_set(ISOTP_FC_TIMEOUT, 0),
 		      HRTIMER_MODE_REL_SOFT);
-	return 0;
+
+	return;
 }
 
 void isotp_send_cframe(struct isotp_sock *so)
