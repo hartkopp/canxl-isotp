@@ -339,8 +339,8 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		return aepcilen;
 	}
 
-	/* TX_DL > 8 => CAN CC and CAN XL have the same kind of SF PCI length
-	 * extension. So we can check for FF segmentation with SF_PCI_SZ8
+	/* TX_DL > 8 => CAN CC/FD and CAN XL have the same kind of SF PCI length
+	 * extension. So we can check for FF segmentation with SF_PCI_SZ8.
 	 */
 	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ8 - ae) {
 		/* FF */

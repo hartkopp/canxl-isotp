@@ -236,7 +236,6 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 	if (isotp_register_rxid(so) && isotp_invalid_canid(rx_id))
 		return -EINVAL;
 
-
 	if (so->xl.tx_flags & CANXL_XLF) {
 		/* CAN XL padding only for TX_DL=8 legacy use cases */
 		if ((so->opt.flags & CAN_ISOTP_PADDING_MASK) &&

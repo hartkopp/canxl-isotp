@@ -242,6 +242,7 @@ static void isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
 	nskb->tstamp = skb->tstamp;
 	nskb->dev = skb->dev;
 	isotp_rcv_skb(nskb, sk);
+
 	return;
 }
 
@@ -453,8 +454,7 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	 * Strictly receive only frames with the configured MTU size
 	 * => clear separation of CAN2.0 / CAN FD transport channels
 	 */
-	if ((cu->fd.can_id != so->rxid) ||
-	    (skb->len != so->ll.mtu))
+	if ((cu->fd.can_id != so->rxid) || (skb->len != so->ll.mtu))
 		return NULL;
 
 	*datalen = cu->fd.len;
