@@ -429,6 +429,14 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	so->tx.idx = 0;
 
 	aepcilen = isotp_sf_ff_pci(so, aepci);
+
+	/* does the given data fit into a single frame for SF_BROADCAST? */
+	if ((isotp_bc_flags(so) == CAN_ISOTP_SF_BROADCAST) &&
+	    (aepci[ae] & N_PCI_MASK)) { /* N_PCI is _not_ SF_PCI (0x00) */
+		err = -EINVAL;
+		goto err_out_drop;
+	}
+
 	space = so->tx.ll_dl - aepcilen;
 	reqlen = min_t(int, size, space);
 	datalen = reqlen + aepcilen;
