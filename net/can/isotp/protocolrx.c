@@ -419,6 +419,7 @@ static void isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 
 	/* we reached the specified blocksize so->rxfc.bs */
 	isotp_send_fc(sk, ae, ISOTP_FC_CTS);
+
 	return;
 }
 

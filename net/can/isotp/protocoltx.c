@@ -244,49 +244,6 @@ void isotp_send_cframe(struct isotp_sock *so)
 	dev_put(dev);
 }
 
-void isotp_rcv_echo(struct sk_buff *skb, void *data)
-{
-	struct sock *sk = (struct sock *)data;
-	struct isotp_sock *so = isotp_sk(sk);
-
-	/* only handle my own local echo CF/SF skb's (no FF!) */
-	if (skb->sk != sk || so->cfecho != can_skb_prv(skb)->skbcnt)
-		return;
-
-	/* cancel local echo timeout */
-	hrtimer_cancel(&so->txtimer);
-
-	/* local echo skb with consecutive frame has been consumed */
-	so->cfecho = 0;
-
-	if (so->tx.idx >= so->tx.len) {
-		/* we are done */
-		so->tx.state = ISOTP_IDLE;
-		wake_up_interruptible(&so->wait);
-		return;
-	}
-
-	if (so->txfc.bs && so->tx.bs >= so->txfc.bs) {
-		/* stop and wait for FC with timeout */
-		so->tx.state = ISOTP_WAIT_FC;
-		hrtimer_start(&so->txtimer, ktime_set(ISOTP_FC_TIMEOUT, 0),
-			      HRTIMER_MODE_REL_SOFT);
-		return;
-	}
-
-	/* no gap between data frames needed => use burst mode */
-	if (!so->tx_gap) {
-		/* enable echo timeout handling */
-		hrtimer_start(&so->txtimer, ktime_set(ISOTP_ECHO_TIMEOUT, 0),
-			      HRTIMER_MODE_REL_SOFT);
-		isotp_send_cframe(so);
-		return;
-	}
-
-	/* start timer to send next consecutive frame with correct delay */
-	hrtimer_start(&so->txfrtimer, so->tx_gap, HRTIMER_MODE_REL_SOFT);
-}
-
 /* create full FF PCI with optional AE and return the required PCI size */
 static int isotp_ff_pci(struct isotp_sock *so, u8 *aepci)
 {
@@ -367,6 +324,49 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 	}
 
 	return aepcilen;
+}
+
+void isotp_rcv_echo(struct sk_buff *skb, void *data)
+{
+	struct sock *sk = (struct sock *)data;
+	struct isotp_sock *so = isotp_sk(sk);
+
+	/* only handle my own local echo CF/SF skb's (no FF!) */
+	if (skb->sk != sk || so->cfecho != can_skb_prv(skb)->skbcnt)
+		return;
+
+	/* cancel local echo timeout */
+	hrtimer_cancel(&so->txtimer);
+
+	/* local echo skb with consecutive frame has been consumed */
+	so->cfecho = 0;
+
+	if (so->tx.idx >= so->tx.len) {
+		/* we are done */
+		so->tx.state = ISOTP_IDLE;
+		wake_up_interruptible(&so->wait);
+		return;
+	}
+
+	if (so->txfc.bs && so->tx.bs >= so->txfc.bs) {
+		/* stop and wait for FC with timeout */
+		so->tx.state = ISOTP_WAIT_FC;
+		hrtimer_start(&so->txtimer, ktime_set(ISOTP_FC_TIMEOUT, 0),
+			      HRTIMER_MODE_REL_SOFT);
+		return;
+	}
+
+	/* no gap between data frames needed => use burst mode */
+	if (!so->tx_gap) {
+		/* enable echo timeout handling */
+		hrtimer_start(&so->txtimer, ktime_set(ISOTP_ECHO_TIMEOUT, 0),
+			      HRTIMER_MODE_REL_SOFT);
+		isotp_send_cframe(so);
+		return;
+	}
+
+	/* start timer to send next consecutive frame with correct delay */
+	hrtimer_start(&so->txfrtimer, so->tx_gap, HRTIMER_MODE_REL_SOFT);
 }
 
 int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
