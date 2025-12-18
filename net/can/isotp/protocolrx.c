@@ -208,8 +208,6 @@ static void isotp_rcv_fc(struct isotp_sock *so, u8 *data, unsigned int datalen)
 		so->tx.state = ISOTP_IDLE;
 		wake_up_interruptible(&so->wait);
 	}
-
-	return;
 }
 
 static void isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
@@ -242,8 +240,6 @@ static void isotp_rcv_sf(struct sock *sk, u8 *data, unsigned int datalen,
 	nskb->tstamp = skb->tstamp;
 	nskb->dev = skb->dev;
 	isotp_rcv_skb(nskb, sk);
-
-	return;
 }
 
 static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
@@ -323,8 +319,6 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 
 	/* send our first FC frame */
 	isotp_send_fc(sk, ae, ISOTP_FC_CTS);
-
-	return;
 }
 
 static void isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
@@ -419,8 +413,6 @@ static void isotp_rcv_cf(struct sock *sk, u8 *data, unsigned int datalen,
 
 	/* we reached the specified blocksize so->rxfc.bs */
 	isotp_send_fc(sk, ae, ISOTP_FC_CTS);
-
-	return;
 }
 
 /* check CC/FD/XL frame and return the pointer to the frame data section */
@@ -428,7 +420,7 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 				  unsigned int *datalen)
 {
 	/* all types of CAN frames start at skb->data */
-	cu_t *cu = (cu_t *)skb->data;
+	union cfu *cu = (union cfu *)skb->data;
 
 	/* check CAN XL frame */
 	if (xlmode(so)) {
@@ -437,10 +429,10 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 		if (!can_is_canxl_skb(skb))
 			return NULL;
 
-		if (((cu->xl.prio & CANXL_PRIO_MASK) != so->rxid) ||
-		    (cu->xl.flags != so->xl.rx_flags) ||
-		    (cu->xl.af != so->xl.rx_addr) ||
-		    (cu->xl.sdt != CAN_CIA_ISO15765_2_SDT))
+		if ((cu->xl.prio & CANXL_PRIO_MASK) != so->rxid ||
+		    cu->xl.flags != so->xl.rx_flags ||
+		    cu->xl.af != so->xl.rx_addr ||
+		    cu->xl.sdt != CAN_CIA_ISO15765_2_SDT)
 			return NULL;
 
 		if ((vcid & CANXL_VCID_VAL_MASK) != so->xl.rx_vcid)
@@ -455,7 +447,7 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	 * Strictly receive only frames with the configured MTU size
 	 * => clear separation of CAN2.0 / CAN FD transport channels
 	 */
-	if ((cu->fd.can_id != so->rxid) || (skb->len != so->ll.mtu))
+	if (cu->fd.can_id != so->rxid || skb->len != so->ll.mtu)
 		return NULL;
 
 	*datalen = cu->fd.len;

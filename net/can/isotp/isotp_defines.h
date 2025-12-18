@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-// Copyright and detailed license information see isotp.c
+/* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
+/* Copyright and detailed license information see isotp.c */
 
 #ifndef _ISOTP_DEFINES_H_
 #define _ISOTP_DEFINES_H_
@@ -111,11 +111,13 @@ struct isotp_sock {
 	spinlock_t rx_lock; /* protect single thread state machine */
 };
 
-/* CAN CC/FD/XL frame union */
-typedef union {
+/* CAN CC/FD/XL frame union to properly access the data elements of different
+ * types of CAN frames all starting at skb->data
+ */
+union cfu {
 	struct can_frame cc;
 	struct canfd_frame fd;
 	struct canxl_frame xl;
-} cu_t;
+};
 
 #endif /* _ISOTP_DEFINES_H_ */

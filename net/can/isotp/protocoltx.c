@@ -51,7 +51,7 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 				 unsigned int datalen)
 {
 	/* all types of CAN frames start at skb->data */
-	cu_t *cu = (cu_t *)skb->data;
+	union cfu *cu = (union cfu *)skb->data;
 
 	/* fill CAN XL frame */
 	if (xlmode(so)) {
@@ -141,8 +141,6 @@ void isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 	/* start rx timeout watchdog */
 	hrtimer_start(&so->rxtimer, ktime_set(ISOTP_FC_TIMEOUT, 0),
 		      HRTIMER_MODE_REL_SOFT);
-
-	return;
 }
 
 void isotp_send_cframe(struct isotp_sock *so)
@@ -162,7 +160,7 @@ void isotp_send_cframe(struct isotp_sock *so)
 	int can_send_ret;
 
 	/* increase skb->len for CAN XL padding with TX_DL=8 only */
-	if ((reqlen < space) && xlmode(so) &&
+	if (reqlen < space && xlmode(so) &&
 	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
 		skblen = isotp_tx_skb_len(so, CAN_ISOTP_MIN_TX_DL);
 	else
@@ -194,7 +192,7 @@ void isotp_send_cframe(struct isotp_sock *so)
 			padlength = padlen(datalen);
 			datalen = padlength;
 			padval = so->opt.txpad_content;
-		} else if ((datalen > CAN_ISOTP_MIN_TX_DL) && !xlmode(so)) {
+		} else if (datalen > CAN_ISOTP_MIN_TX_DL && !xlmode(so)) {
 			/* mandatory padding for CAN FD frames */
 			padlength = padlen(datalen);
 			datalen = padlength;
@@ -442,7 +440,7 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	datalen = reqlen + aepcilen;
 
 	/* increase skb->len for CAN XL padding with TX_DL=8 only */
-	if ((reqlen < space) && xlmode(so) &&
+	if (reqlen < space && xlmode(so) &&
 	    (so->opt.flags & CAN_ISOTP_TX_PADDING))
 		skblen = isotp_tx_skb_len(so, CAN_ISOTP_MIN_TX_DL);
 	else
@@ -471,13 +469,13 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	skb_put_zero(skb, skblen);
 
 	/* check for single frame padding (N_PCI_SF = 0) */
-	if (!(aepci[ae] & N_PCI_MASK) && (reqlen < space)) {
+	if (!(aepci[ae] & N_PCI_MASK) && reqlen < space) {
 		if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
 			/* user requested CC/FD padding (or XL with TX_DL=8) */
 			padlength = padlen(datalen);
 			datalen = padlength;
 			padval = so->opt.txpad_content;
-		} else if ((datalen > CAN_ISOTP_MIN_TX_DL) && !xlmode(so)) {
+		} else if (datalen > CAN_ISOTP_MIN_TX_DL && !xlmode(so)) {
 			/* mandatory padding for CAN FD frames */
 			padlength = padlen(datalen);
 			datalen = padlength;

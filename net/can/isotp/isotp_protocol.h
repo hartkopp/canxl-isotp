@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-// Copyright and detailed license information see isotp.c
+/* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
+/* Copyright and detailed license information see isotp.c */
 
 #ifndef _ISOTP_PROTOCOL_H_
 #define _ISOTP_PROTOCOL_H_
