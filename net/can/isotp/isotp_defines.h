@@ -47,6 +47,8 @@
 #define N_PCI_FC 0x30	/* flow control */
 #define N_PCI_MASK 0xF0	/* to mask the N_PCI type value */
 
+#define N_PCI(pci) ((pci) & N_PCI_MASK)
+
 #define N_PCI_SF_XL 8	/* SF length CAN XL flag (bit 3 of N_PCI low nibble) */
 
 #define N_PCI_SZ 1	/* size of the PCI byte #1 */

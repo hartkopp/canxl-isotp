@@ -253,16 +253,16 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 	hrtimer_cancel(&so->rxtimer);
 	so->rx.state = ISOTP_IDLE;
 
-	/* get the used sender LL_DL from the (first) CAN frame data length */
 	if (datalen < CAN_ISOTP_MIN_TX_DL)
 		return;
 
+	/* get the used sender LL_DL from the (first) CAN frame data length */
 	if (xlmode(so))
 		so->rx.ll_dl = datalen;
 	else
 		so->rx.ll_dl = padlen(datalen);
 
-	/* CAN FD: the first frame has to use the entire frame up to LL_DL length */
+	/* CAN FD: the first frame uses the entire LL_DL length (no padding) */
 	if (datalen != so->rx.ll_dl)
 		return;
 
