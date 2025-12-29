@@ -247,7 +247,6 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 	struct isotp_sock *so = isotp_sk(sk);
 	int ae = (so->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
 	int i;
-	int off;
 	int ff_pci_sz;
 
 	hrtimer_cancel(&so->rxtimer);
@@ -280,12 +279,14 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 		so->rx.len += *(data + ae + 4) << 8;
 		so->rx.len += *(data + ae + 5);
 		ff_pci_sz = FF_PCI_SZ32;
+
+		/* unneeded escape sequence => ignore PDU according to spec */
+		if (so->rx.len <= MAX_12BIT_PDU_SIZE)
+			return;
 	}
 
-	/* take care of a potential SF_DL ESC offset for TX_DL > 8 */
-	off = (so->rx.ll_dl > CAN_ISOTP_MIN_TX_DL) ? 1 : 0;
-
-	if (so->rx.len + ae + off + ff_pci_sz < so->rx.ll_dl)
+	/* single FF's are not allowed. rx.len has to require a CF */
+	if (so->rx.len + ae + ff_pci_sz <= so->rx.ll_dl)
 		return;
 
 	/* PDU size > default => try max_pdu_size */
