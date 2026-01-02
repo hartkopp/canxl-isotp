@@ -309,9 +309,9 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 	}
 
 	/* TX_DL > 8 => CAN FD and CAN XL have the same kind of SF PCI length
-	 * extension. So we can check for FF segmentation with SF_PCI_SZ8.
+	 * extension. So we can check for FF segmentation with SF_PCI_SZ11.
 	 */
-	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ8 - ae) {
+	if (so->tx.len > so->tx.ll_dl - SF_PCI_SZ11 - ae) {
 		/* FF */
 		aepcilen = isotp_ff_pci(so, aepci);
 	} else if (so->tx.len <= CAN_MAX_DLEN - SF_PCI_SZ4 - ae) {
@@ -328,7 +328,7 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		/* follow 12 bit FF_DL notation for 8/11 bit FD/XL SF DL */
 		*(aepci + ae) = (u8)(so->tx.len >> 8) | N_PCI_SF;
 		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
-		aepcilen = SF_PCI_SZ8 + ae;
+		aepcilen = SF_PCI_SZ11 + ae;
 
 		/* set SF length CAN XL flag in XL mode */
 		if (xlmode(so))

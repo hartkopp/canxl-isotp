@@ -518,21 +518,21 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 					/* add low byte of SF data length */
 					sf_dl |= *(data + SF_PCI_SZ4 + ae);
 					isotp_rcv_sf(sk, data, datalen,
-						     SF_PCI_SZ8 + ae, skb, sf_dl);
+						     SF_PCI_SZ11 + ae, skb, sf_dl);
 				}
 			} else if (can_is_canfd_skb(skb)) {
 				/* We have a CAN FD frame and CAN_DL is greater than 8:
 				 * Only frames with the SF_DL == 0 ESC value are valid.
 				 *
 				 * If so take care of the increased SF PCI size
-				 * (SF_PCI_SZ8) to point to the message content behind
+				 * (SF_PCI_SZ11) to point to the message content behind
 				 * the extended SF PCI info and get the real SF_DL
 				 * length value from the formerly first data byte.
 				 */
 				if (sf_dl == 0) {
 					sf_dl = *(data + SF_PCI_SZ4 + ae);
 					isotp_rcv_sf(sk, data, datalen,
-						     SF_PCI_SZ8 + ae, skb, sf_dl);
+						     SF_PCI_SZ11 + ae, skb, sf_dl);
 				}
 			}
 		}
