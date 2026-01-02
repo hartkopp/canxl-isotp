@@ -112,6 +112,10 @@ static bool chk_pad_fail(struct isotp_sock *so, u8 *data, unsigned int datalen,
 		return true;
 	}
 
+	/* RX_PADDING with CAN XL => datalen must be CAN_ISOTP_MIN_TX_DL */
+	if (xlmode(so) && (datalen != CAN_ISOTP_MIN_TX_DL))
+		return true;
+
 	/* check datalength of correctly padded CAN frame */
 	if ((so->opt.flags & CAN_ISOTP_CHK_PAD_LEN) &&
 	    datalen != padlen(datalen))
