@@ -131,10 +131,10 @@ struct can_isotp_xl_options {
 				/* CAN XL tx_dl range : 8 .. 2048	*/
 				/* => rx path supports all LL_DL values */
 
-	canid_t	tx_addr;	/* tx address for ISO 15675-2 channel	*/
+	canid_t	tx_addr;	/* tx address for ISO 15765-2 channel	*/
 				/* => copy to XL acceptance field (AF)	*/
 
-	canid_t	rx_addr;	/* rx address for ISO 15675-2 channel	*/
+	canid_t	rx_addr;	/* rx address for ISO 15765-2 channel	*/
 				/* => check of XL acceptance field (AF)	*/
 
 	__u8	tx_flags;	/* set into struct canxl_frame.flags	*/
