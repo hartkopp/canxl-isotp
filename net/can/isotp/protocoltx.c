@@ -325,7 +325,7 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		if (ae)
 			*(aepci) = so->opt.ext_address;
 
-		/* follow 12 bit FF_DL notation for 8/11 bit FD/XL SF DL */
+		/* follow 12 bit FF_DL notation for 6/11 bit FD/XL SF DL */
 		*(aepci + ae) = (u8)(so->tx.len >> 8) | N_PCI_SF;
 		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
 		aepcilen = SF_PCI_SZ11 + ae;
