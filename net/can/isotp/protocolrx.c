@@ -34,6 +34,8 @@
 #include "isotp_defines.h"
 #include "isotp_protocol.h"
 
+#define CHECK_PAD_LEN_DATA (CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
+
 /* can-isotp module parameter, see isotp.c */
 extern unsigned int max_pdu_size;
 
@@ -111,10 +113,6 @@ static bool chk_pad_fail(struct isotp_sock *so, u8 *data, unsigned int datalen,
 		/* no valid test against empty value => ignore frame */
 		return true;
 	}
-
-	/* RX_PADDING with CAN XL => datalen must be CAN_ISOTP_MIN_TX_DL */
-	if (xlmode(so) && (datalen != CAN_ISOTP_MIN_TX_DL))
-		return true;
 
 	/* check datalength of correctly padded CAN frame */
 	if ((so->opt.flags & CAN_ISOTP_CHK_PAD_LEN) &&
@@ -260,12 +258,12 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 		return;
 
 	/* get the used sender LL_DL from the (first) CAN frame data length */
-	if (xlmode(so))
+	if (xlmode(so) && !(so->opt.flags & CHECK_PAD_LEN_DATA))
 		so->rx.ll_dl = datalen;
 	else
 		so->rx.ll_dl = padlen(datalen);
 
-	/* CAN FD: the first frame uses the entire LL_DL length (no padding) */
+	/* the first frame uses the entire LL_DL length (no padding) */
 	if (datalen != so->rx.ll_dl)
 		return;
 
@@ -514,6 +512,11 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 				     SF_PCI_SZ4 + ae, skb, sf_dl);
 		} else {
 			if (xlmode(so)) {
+				/* XL padding uses the FD SF_DL == 0 ESC value */
+				if ((so->opt.flags & CHECK_PAD_LEN_DATA) &&
+				    datalen == padlen(datalen))
+					sf_dl |= N_PCI_SF_XL;
+
 				/* isotp_check_frame_head() checked the rest */
 				if (sf_dl & N_PCI_SF_XL) {
 					/* use the low nibble content of N_PCI byte */

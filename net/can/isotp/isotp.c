@@ -237,9 +237,9 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 		return -EINVAL;
 
 	if (so->xl.tx_flags & CANXL_XLF) {
-		/* CAN XL padding only for TX_DL=8 legacy use cases */
-		if ((so->opt.flags & CAN_ISOTP_PADDING_MASK) &&
-		    so->tx.ll_dl > CAN_ISOTP_MIN_TX_DL)
+		/* CAN XL padding only for CAN FD TX_DL lengths */
+		if ((so->opt.flags & CAN_ISOTP_TX_PADDING) &&
+		    so->tx.ll_dl != padlen(so->tx.ll_dl))
 			return -EINVAL;
 
 		/* CAN XL priority field is only 11 bit */

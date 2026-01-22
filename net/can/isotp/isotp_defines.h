@@ -33,10 +33,6 @@
 /* valid bits that can/must be set in struct canxl_frame.flags */
 #define CANXL_FLAGS_MASK (CANXL_XLF | CANXL_RRS | CANXL_SEC)
 
-/* to check for disabled padding options for the CAN XL link layer */
-#define CAN_ISOTP_PADDING_MASK (CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING | \
-				CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
-
 /* CAN CiA 611-1 Service Data Unit Type for ISO 15765-2 */
 #define CAN_CIA_ISO15765_2_SDT 0x09
 
