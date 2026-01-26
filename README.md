@@ -21,17 +21,18 @@ The development consists of
 - refactor functions to return bool or void
 - remove referencing struct canfd_frames and provide a data pointer and a datalen instead
 - create helpers to fill and check CAN frame head content
-- rework the padding for TX_DL == 8 including CAN XL support
+- rework the padding code to prepare the CAN XL padding support
 - introduce CAN XL link layer sockopt to pass addresses, VCID, flags, TX_DL
 
 Features of the new CAN XL support:
 
 - configurable TX_DL from 8 to 2048 (linear values)
-- Padding (RX/TX) for TX_DL = 8 (legacy feature, routing capability)
+- XL SF length encoding in two SF PCI bytes (following the FD/FF length encoding concept)
+- Padding (RX/TX) for valid CAN FD TX_DL values (8, 12, 16, 20, 24, 32, 48, 64)
+- Use the FD SF PCI encoding for CAN XL padding (ONLY for padding with FD TX_DL values)
 - known ISO-TP addressing (RX/TX) in AF field (11/29 bit CAN ID as known from SocketCAN canid_t)
 - sending and checking (RX/TX) of VCID, CAN XL flags (enables filtering for SEC & RRS bits)
 - 11 bit CAN XL priority in sockaddr_can.tp.\[rx\|tx\]_id (former CAN ID addresses)
-- SF length encoding for FD/XL in two SF PCI bytes (following the FF length encoding concept)
 
 But beware: This implementation only reflects the current state of discussion to evaluate the impact of the CAN XL extension to existing ISO-TP protocol code.
 There is not even a draft ISO15765-2:2026 standard document out there.
@@ -42,4 +43,4 @@ https://github.com/hartkopp/can-utils/tree/canxl-isotp
 
 Happy testing! Feedback is welcome!
 
-(c)2025 Oliver Hartkopp <socketcan@hartkopp.net>
+(c)2026 Oliver Hartkopp <socketcan@hartkopp.net>
