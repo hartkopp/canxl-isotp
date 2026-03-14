@@ -57,9 +57,9 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	if (xlmode(so)) {
 		cu->xl.prio = so->txid;
 		cu->xl.flags = so->xl.tx_flags; /* incl. SEC/RRS */
-		cu->xl.af = so->xl.tx_addr;
+		cu->xl.af = so->af_txaddr;
 		cu->xl.len = datalen;
-		cu->xl.sdt = CAN_CIA_ISO15765_2_SDT;
+		cu->xl.sdt = so->xl.sdt_mode;
 		if (so->xl.tx_vcid)
 			cu->xl.prio |= (so->xl.tx_vcid << CANXL_VCID_OFFSET);
 
@@ -74,9 +74,10 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	return (u8 *)&cu->fd.data;
 }
 
-static inline bool isotp_xl_tx_padding(struct isotp_sock *so)
+static inline bool isotp_req_pad(struct isotp_sock *so, unsigned int datalen)
 {
-	return (xlmode(so) && (so->opt.flags & CAN_ISOTP_TX_PADDING));
+	return ((so->ll.mtu == CANFD_MTU && datalen > CAN_MAX_DLEN) ||
+		(so->opt.flags & CAN_ISOTP_TX_PADDING));
 }
 
 static int get_padlength(struct isotp_sock *so, unsigned int *datalen, u8 *padval)
@@ -112,8 +113,8 @@ void isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 	u8 *data;
 	int can_send_ret;
 
-	/* increase skb->len for CAN XL FC padding */
-	if (isotp_xl_tx_padding(so))
+	/* increase skb->len for CAN FC padding */
+	if (so->opt.flags & CAN_ISOTP_TX_PADDING)
 		skblen = isotp_tx_skb_len(so, CAN_ISOTP_MIN_TX_DL);
 	else
 		skblen = isotp_tx_skb_len(so, datalen);
@@ -187,8 +188,8 @@ void isotp_send_cframe(struct isotp_sock *so)
 	u8 *data;
 	int can_send_ret;
 
-	/* increase skb->len for CAN XL padding */
-	if (reqlen < space && isotp_xl_tx_padding(so))
+	/* increase skb->len for CAN CC/FD padding */
+	if (reqlen < space && isotp_req_pad(so, datalen))
 		skblen = isotp_tx_skb_len(so, padlen(datalen));
 	else
 		skblen = isotp_tx_skb_len(so, datalen);
@@ -323,6 +324,7 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		*(aepci + ae) = (u8)(so->tx.len) | N_PCI_SF;
 		aepcilen = SF_PCI_SZ4 + ae;
 	} else {
+		/* extended 2 byte SF PCI for CAN FD or CAN XL */
 		if (ae)
 			*(aepci) = so->opt.ext_address;
 
@@ -332,7 +334,7 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		aepcilen = SF_PCI_SZ11 + ae;
 
 		/* set SF CAN XL flag in XL mode when not in padding mode */
-		if (xlmode(so) && !isotp_xl_tx_padding(so))
+		if (xlmode(so) && !isotp_req_pad(so, so->tx.ll_dl))
 			*(aepci + ae) |= N_PCI_SF_XL;
 	}
 
@@ -454,8 +456,8 @@ int isotp_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	reqlen = min_t(int, size, space);
 	datalen = reqlen + aepcilen;
 
-	/* increase skb->len for CAN XL padding */
-	if (reqlen < space && isotp_xl_tx_padding(so))
+	/* increase skb->len for CAN CC/FD padding */
+	if (reqlen < space && isotp_req_pad(so, datalen))
 		skblen = isotp_tx_skb_len(so, padlen(datalen));
 	else
 		skblen = isotp_tx_skb_len(so, datalen);

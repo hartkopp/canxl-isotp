@@ -209,6 +209,39 @@ static bool isotp_invalid_canid(canid_t canid)
 	return false;
 }
 
+static bool isotp_bind_xl(struct isotp_sock *so)
+{
+	/* set AF TX address */
+	so->af_txaddr = so->xl.tx_addr;
+
+	/* move potential TX EFF flag for 29 bit address */
+	if (so->af_txaddr & CAN_EFF_FLAG)
+		so->af_txaddr ^= (CAN_EFF_FLAG | CAN_CIA_SDT_EFF);
+
+	if (so->xl.sdt_mode == CAN_CIA_FD_TUNNEL_SDT) {
+		if (so->ll.mtu != CANFD_MTU)
+			return false;
+		if (so->ll.tx_flags & CANFD_BRS)
+			so->af_txaddr |= CAN_CIA_SDT7_BRS;
+	}
+
+	if (so->xl.sdt_mode == CAN_CIA_CC_TUNNEL_SDT) {
+		if (so->ll.mtu != CAN_MTU)
+			return false;
+		if (so->tx.ll_dl != CAN_MAX_DLEN)
+			return false;
+	}
+
+	/* set AF RX address */
+	so->af_rxaddr = so->xl.rx_addr;
+
+	/* move potential RX EFF flag for 29 bit address */
+	if (so->af_rxaddr & CAN_EFF_FLAG)
+		so->af_rxaddr ^= (CAN_EFF_FLAG | CAN_CIA_SDT_EFF);
+
+	return true;
+}
+
 static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int len)
 {
 	struct sockaddr_can *addr = (struct sockaddr_can *)uaddr;
@@ -236,14 +269,19 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 	if (isotp_register_rxid(so) && isotp_invalid_canid(rx_id))
 		return -EINVAL;
 
-	if (so->xl.tx_flags & CANXL_XLF) {
-		/* CAN XL padding only for CAN FD TX_DL lengths */
-		if ((so->opt.flags & CAN_ISOTP_TX_PADDING) &&
-		    so->tx.ll_dl != padlen(so->tx.ll_dl))
-			return -EINVAL;
+	/* Allow padding only for valid CAN CC/FD TX_DL lengths */
+	if (((so->opt.flags & CAN_ISOTP_TX_PADDING) ||
+	     so->ll.mtu == CANFD_MTU) &&
+	    so->tx.ll_dl != padlen(so->tx.ll_dl))
+		return -EINVAL;
 
+	if (so->xl.tx_flags & CANXL_XLF) {
 		/* CAN XL priority field is only 11 bit */
 		if ((tx_id | rx_id) & CAN_EFF_FLAG)
+			return -EINVAL;
+
+		/* check and setup CAN XL specific content */
+		if (!isotp_bind_xl(so))
 			return -EINVAL;
 	}
 
@@ -458,6 +496,12 @@ static int isotp_setsockopt_locked(struct socket *sock, int level, int optname,
 				return -EINVAL;
 
 			if (isotp_invalid_canid(xl.rx_addr))
+				return -EINVAL;
+
+			/* check supported Service Data Unit Types */
+			if (xl.sdt_mode != CAN_CIA_CC_TUNNEL_SDT &&
+			    xl.sdt_mode != CAN_CIA_FD_TUNNEL_SDT &&
+			    xl.sdt_mode != CAN_CIA_ISO15765_2_SDT)
 				return -EINVAL;
 
 			memcpy(&so->xl, &xl, sizeof(xl));

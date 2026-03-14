@@ -34,8 +34,6 @@
 #include "isotp_defines.h"
 #include "isotp_protocol.h"
 
-#define CHECK_PAD_LEN_DATA (CAN_ISOTP_CHK_PAD_LEN | CAN_ISOTP_CHK_PAD_DATA)
-
 /* can-isotp module parameter, see isotp.c */
 extern unsigned int max_pdu_size;
 
@@ -258,7 +256,7 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 		return;
 
 	/* get the used sender LL_DL from the (first) CAN frame data length */
-	if (xlmode(so) && !(so->opt.flags & CHECK_PAD_LEN_DATA))
+	if (xlmode(so) && !(so->opt.flags & ISOTP_CHECK_PADDING))
 		so->rx.ll_dl = datalen;
 	else
 		so->rx.ll_dl = padlen(datalen);
@@ -434,8 +432,9 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 
 		if ((cu->xl.prio & CANXL_PRIO_MASK) != so->rxid ||
 		    cu->xl.flags != so->xl.rx_flags ||
-		    cu->xl.af != so->xl.rx_addr ||
-		    cu->xl.sdt != CAN_CIA_ISO15765_2_SDT)
+		    /* ignore CAN_CIA_SDT7_BRS at reception time */
+		    (cu->xl.af & CAN_CIA_ADDR_MASK) != so->af_rxaddr ||
+		    cu->xl.sdt != so->xl.sdt_mode)
 			return NULL;
 
 		if ((vcid & CANXL_VCID_VAL_MASK) != so->xl.rx_vcid)
@@ -512,8 +511,9 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 				     SF_PCI_SZ4 + ae, skb, sf_dl);
 		} else {
 			if (xlmode(so)) {
-				/* XL padding uses the FD SF_DL == 0 ESC value */
-				if ((so->opt.flags & CHECK_PAD_LEN_DATA) &&
+				/* padding uses the FD SF_DL == 0 ESC value */
+				if (((so->opt.flags & ISOTP_CHECK_PADDING) ||
+				     so->ll.mtu == CANFD_MTU) &&
 				    datalen == padlen(datalen))
 					sf_dl |= N_PCI_SF_XL;
 

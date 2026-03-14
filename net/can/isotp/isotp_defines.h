@@ -33,8 +33,10 @@
 /* valid bits that can/must be set in struct canxl_frame.flags */
 #define CANXL_FLAGS_MASK (CANXL_XLF | CANXL_RRS | CANXL_SEC)
 
-/* CAN CiA 611-1 Service Data Unit Type for ISO 15765-2 */
-#define CAN_CIA_ISO15765_2_SDT 0x09
+/* CAN CiA 611-1 Acceptance Field flags for SDTs 06/07/09 addressing */
+#define CAN_CIA_SDT_EFF  0x20000000U /* 29 bit ISO-TP address flag */
+#define CAN_CIA_SDT7_BRS 0x40000000U /* BRS flag for SDT 07 CAN FD tunnel */
+#define CAN_CIA_ADDR_MASK (CAN_CIA_SDT_EFF | CAN_EFF_MASK) /* address only */
 
 /* N_PCI type values in bits 7-4 of N_PCI bytes */
 #define N_PCI_SF 0x00	/* single frame */
@@ -92,6 +94,8 @@ struct isotp_sock {
 	int ifindex;
 	canid_t txid;
 	canid_t rxid;
+	u32 af_txaddr;
+	u32 af_rxaddr;
 	ktime_t tx_gap;
 	ktime_t lastrxcf_tstamp;
 	struct hrtimer rxtimer, txtimer, txfrtimer;
