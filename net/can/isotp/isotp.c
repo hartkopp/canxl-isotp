@@ -416,9 +416,6 @@ static int isotp_setsockopt_locked(struct socket *sock, int level, int optname,
 
 			memcpy(&so->ll, &ll, sizeof(ll));
 
-			/* configured CC/FD LL opts -> disable XL LL opts */
-			so->xl.tx_flags = 0;
-
 			/* set ll_dl for tx path to similar place as for rx */
 			so->tx.ll_dl = ll.tx_dl;
 		} else {
@@ -433,17 +430,27 @@ static int isotp_setsockopt_locked(struct socket *sock, int level, int optname,
 			if (copy_from_sockptr(&xl, optval, optlen))
 				return -EFAULT;
 
-			/* check for correct/required CAN XL flags */
-			if (!(xl.tx_flags & CANXL_XLF) ||
-			    (xl.tx_flags & ~CANXL_FLAGS_MASK))
-				return -EINVAL;
+			/* disable XL mode? */
+			if (!(xl.tx_flags & CANXL_XLF)) {
+				/* reset LL_DL default (8, 12, .., 64) */
+				so->tx.ll_dl = so->ll.tx_dl;
 
-			if (!(xl.rx_flags & CANXL_XLF) ||
+				/* disable XL mode */
+				so->xl.tx_flags = 0;
+
+				/* standard exit */
+				break;
+			}
+
+			/* check the other required CAN XL flags/settings */
+			if ((xl.tx_flags & ~CANXL_FLAGS_MASK) ||
+			    !(xl.rx_flags & CANXL_XLF) ||
 			    (xl.rx_flags & ~CANXL_FLAGS_MASK))
 				return -EINVAL;
 
 			/* check valid tx_dl range for CAN XL link layer */
-			if (xl.tx_dl < CAN_ISOTP_MIN_TX_DL || xl.tx_dl > CANXL_MAX_DLEN)
+			if (xl.tx_dl < CAN_ISOTP_MIN_TX_DL ||
+			    xl.tx_dl > CANXL_MAX_DLEN)
 				return -EINVAL;
 
 			/* check for correct CAN identifier */

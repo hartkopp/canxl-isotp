@@ -89,7 +89,8 @@ static int get_padlength(struct isotp_sock *so, unsigned int *datalen, u8 *padva
 		padlength = padlen(*datalen);
 		*datalen = padlength;
 		*padval = so->opt.txpad_content;
-	} else if (*datalen > CAN_ISOTP_MIN_TX_DL && !xlmode(so)) {
+	} else if (so->ll.mtu == CANFD_MTU &&
+		   *datalen > CAN_ISOTP_MIN_TX_DL) {
 		/* mandatory padding for CAN FD frames */
 		padlength = padlen(*datalen);
 		*datalen = padlength;
