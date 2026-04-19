@@ -515,10 +515,10 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 				if (((so->opt.flags & ISOTP_CHECK_PADDING) ||
 				     fd_might_pad(so)) &&
 				    datalen == padlen(datalen))
-					sf_dl |= N_PCI_SF_XL;
+					sf_dl |= N_PCI_XL_SF;
 
 				/* isotp_check_frame_head() checked the rest */
-				if (sf_dl & N_PCI_SF_XL) {
+				if (sf_dl & N_PCI_XL_SF) {
 					/* use the low nibble content of N_PCI byte */
 					sf_dl &= 7;
 					sf_dl <<= 8;
