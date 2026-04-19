@@ -513,7 +513,7 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 			if (xlmode(so)) {
 				/* padding uses the FD SF_DL == 0 ESC value */
 				if (((so->opt.flags & ISOTP_CHECK_PADDING) ||
-				     so->ll.mtu == CANFD_MTU) &&
+				     fd_might_pad(so)) &&
 				    datalen == padlen(datalen))
 					sf_dl |= N_PCI_SF_XL;
 
