@@ -33,8 +33,8 @@ static inline bool fd_might_pad(struct isotp_sock *so)
 	return (so->ll.mtu == CANFD_MTU);
 }
 
-/* CAN XL link layer mode is enabled when this flag is set */
-static inline bool xlmode(struct isotp_sock *so)
+/* CAN XL frame encapsulation enabled (for CC/FD/XL N_PDUs) */
+static inline bool xl_encap(struct isotp_sock *so)
 {
 	return (so->xl.tx_flags & CANXL_XLF);
 }

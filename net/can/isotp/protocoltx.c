@@ -40,7 +40,7 @@ extern unsigned int max_pdu_size;
 /* calculate CAN protocol specific length for CAN sk_buffs */
 static int isotp_tx_skb_len(struct isotp_sock *so, unsigned int datalen)
 {
-	if (xlmode(so))
+	if (xl_encap(so))
 		return CANXL_HDR_SIZE + datalen;
 	else
 		return so->ll.mtu;
@@ -54,7 +54,7 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	union cfu *cu = (union cfu *)skb->data;
 
 	/* fill CAN XL frame */
-	if (xlmode(so)) {
+	if (xl_encap(so)) {
 		cu->xl.prio = so->txid;
 		cu->xl.flags = so->xl.tx_flags; /* incl. SEC/RRS */
 		cu->xl.af = so->af_txaddr;
@@ -333,8 +333,8 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
 		aepcilen = SF_PCI_SZ11 + ae;
 
-		/* set SF CAN XL flag in XL mode when not in padding mode */
-		if (xlmode(so) && !isotp_req_pad(so, so->tx.ll_dl))
+		/* set XL SF flag for XL encapsulation when not padding */
+		if (xl_encap(so) && !isotp_req_pad(so, so->tx.ll_dl))
 			*(aepci + ae) |= N_PCI_SF_XL;
 	}
 

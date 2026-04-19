@@ -256,7 +256,7 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 		return;
 
 	/* get the used sender LL_DL from the (first) CAN frame data length */
-	if (xlmode(so) && !(so->opt.flags & ISOTP_CHECK_PADDING))
+	if (xl_encap(so) && !(so->opt.flags & ISOTP_CHECK_PADDING))
 		so->rx.ll_dl = datalen;
 	else
 		so->rx.ll_dl = padlen(datalen);
@@ -424,7 +424,7 @@ static u8 *isotp_check_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 	union cfu *cu = (union cfu *)skb->data;
 
 	/* check CAN XL frame */
-	if (xlmode(so)) {
+	if (xl_encap(so)) {
 		canid_t vcid = cu->xl.prio >> CANXL_VCID_OFFSET;
 
 		if (!can_is_canxl_skb(skb))
@@ -510,7 +510,7 @@ void isotp_rcv(struct sk_buff *skb, void *skdata)
 			isotp_rcv_sf(sk, data, datalen,
 				     SF_PCI_SZ4 + ae, skb, sf_dl);
 		} else {
-			if (xlmode(so)) {
+			if (xl_encap(so)) {
 				/* padding uses the FD SF_DL == 0 ESC value */
 				if (((so->opt.flags & ISOTP_CHECK_PADDING) ||
 				     fd_might_pad(so)) &&
