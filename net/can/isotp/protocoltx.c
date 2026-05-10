@@ -83,20 +83,22 @@ static inline bool isotp_req_pad(struct isotp_sock *so, unsigned int datalen)
 static int get_padlength(struct isotp_sock *so, unsigned int *datalen,
 			 u8 *padval)
 {
-	int padlength = 0;
+	int padlength;
 
-	/* increase payload length for padding */
 	if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
 		/* user requested CC/FD N_PDU padding */
-		padlength = padlen(*datalen);
-		*datalen = padlength;
 		*padval = so->opt.txpad_content;
 	} else if (fd_might_pad(so) && *datalen > CAN_ISOTP_MIN_TX_DL) {
 		/* mandatory padding for CAN FD N_PDUs */
-		padlength = padlen(*datalen);
-		*datalen = padlength;
 		*padval = CAN_ISOTP_DEFAULT_PAD_CONTENT;
+	} else {
+		/* no padding -> zero padlength */
+		return 0;
 	}
+
+	/* increase payload length for padding */
+	padlength = padlen(*datalen);
+	*datalen = padlength;
 
 	return padlength;
 }
