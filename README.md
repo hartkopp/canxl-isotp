@@ -10,7 +10,9 @@ https://github.com/hartkopp/canxl-isotp-mainline &emsp; &emsp; (for Linux 6.19; 
 
 https://github.com/hartkopp/canxl-isotp-mainline7.0 &emsp; (for Linux 7.0; `git format-patch HEAD~15`)
 
-A patch set to be applied (e.g. with `git am 00*`) to the Linux 6.19/7.0 tree can be created with the `git format-patch` command.
+https://github.com/hartkopp/canxl-isotp-mainline7.1 &emsp; (for Linux 7.1; `git format-patch HEAD~14`)
+
+A patch set to be applied (e.g. with `git am 00*`) to the Linux 6.19/7.x tree can be created with the `git format-patch` command.
 
 The former implementation for CAN CC/FD relied on the struct can\[fd\]_frame which was referenced via pointer in many function calls.
 The CAN XL frame structure canxl_frame has the length information and payload data at different postitions/offsets which has a big impact on the function calls.
@@ -32,9 +34,10 @@ Features of the new CAN XL support:
 
 - configurable TX_DL from 8 to 2048 (linear values)
 - XL SF length encoding in two SF PCI bytes (following the FD/FF length encoding concept)
-- Padding (RX/TX) for valid CAN FD TX_DL values (8, 12, 16, 20, 24, 32, 48, 64)
-- Use the FD SF PCI encoding for CAN XL padding (ONLY for padding with FD TX_DL values)
-- known ISO-TP addressing (RX/TX) in AF field (11/29 bit CAN ID as known from SocketCAN canid_t)
+- Padding (RX/TX) for valid CAN CC/FD TX_DL values (8, 12, 16, 20, 24, 32, 48, 64)
+- support CAN XL encapsulation for CC/FD N_PDUs incl. padding
+- support CAN XL encapsulation for CC/FD/XL CAN CiA SDTs 6/7/9 (TX/RX)
+- known ISO-TP addressing (RX/TX) in AF field (configured via 11/29 bit SocketCAN canid_t)
 - sending and checking (RX/TX) of VCID, CAN XL flags (enables filtering for SEC & RRS bits)
 - 11 bit CAN XL priority in sockaddr_can.tp.\[rx\|tx\]_id (former CAN ID addresses)
 
