@@ -106,7 +106,7 @@ struct isotp_sock {
 	u32 frame_txtime;
 	u32 force_tx_stmin;
 	u32 force_rx_stmin;
-	int cfecho; /* consecutive frame echo tag */
+	u32 cfecho; /* consecutive frame echo tag */
 	struct tpcon rx, tx;
 	struct list_head notifier;
 	wait_queue_head_t wait;
