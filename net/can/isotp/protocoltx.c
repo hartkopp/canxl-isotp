@@ -76,7 +76,7 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 
 static inline bool isotp_req_pad(struct isotp_sock *so, unsigned int datalen)
 {
-	return ((fd_pdu(so) && datalen > CAN_MAX_DLEN) ||
+	return ((fd_pdu(so) && datalen > CAN_ISOTP_MIN_TX_DL) ||
 		(so->opt.flags & CAN_ISOTP_TX_PADDING));
 }
 
