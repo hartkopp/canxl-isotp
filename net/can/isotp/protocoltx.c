@@ -335,8 +335,8 @@ static unsigned int isotp_sf_ff_pci(struct isotp_sock *so, u8 *aepci)
 		*(aepci + ae + 1) = (u8)so->tx.len & 0xFFU;
 		aepcilen = SF_PCI_SZ11 + ae;
 
-		/* set XL SF flag for XL encapsulation when not padding */
-		if (xl_encap(so) && !isotp_req_pad(so, so->tx.ll_dl))
+		/* set XL SF flag for XL encapsulation if not FD PDU */
+		if (xl_encap(so) && !fd_pdu(so))
 			*(aepci + ae) |= N_PCI_XL_SF;
 	}
 
