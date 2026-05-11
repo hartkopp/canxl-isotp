@@ -256,10 +256,10 @@ static void isotp_rcv_ff(struct sock *sk, u8 *data, unsigned int datalen)
 		return;
 
 	/* get the used sender LL_DL from the (first) CAN frame data length */
-	if (xl_encap(so) && !(so->opt.flags & ISOTP_CHECK_PADDING))
-		so->rx.ll_dl = datalen;
-	else
+	if (fd_pdu(so) && datalen > CAN_ISOTP_MIN_TX_DL)
 		so->rx.ll_dl = padlen(datalen);
+	else
+		so->rx.ll_dl = datalen;
 
 	/* the first frame uses the entire LL_DL length (no padding) */
 	if (datalen != so->rx.ll_dl)
