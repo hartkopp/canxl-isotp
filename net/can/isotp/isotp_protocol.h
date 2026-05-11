@@ -27,8 +27,8 @@ static inline u32 isotp_bc_flags(struct isotp_sock *so)
 	return so->opt.flags & ISOTP_ALL_BC_FLAGS;
 }
 
-/* CAN FD requires mandatory padding for TX_DL > 8 */
-static inline bool fd_might_pad(struct isotp_sock *so)
+/* CAN FD requires e.g. mandatory padding for TX_DL > 8 */
+static inline bool fd_pdu(struct isotp_sock *so)
 {
 	return (so->ll.mtu == CANFD_MTU);
 }

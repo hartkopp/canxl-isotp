@@ -76,7 +76,7 @@ static u8 *isotp_fill_frame_head(struct isotp_sock *so, struct sk_buff *skb,
 
 static inline bool isotp_req_pad(struct isotp_sock *so, unsigned int datalen)
 {
-	return ((fd_might_pad(so) && datalen > CAN_MAX_DLEN) ||
+	return ((fd_pdu(so) && datalen > CAN_MAX_DLEN) ||
 		(so->opt.flags & CAN_ISOTP_TX_PADDING));
 }
 
@@ -86,10 +86,10 @@ static int get_padlength(struct isotp_sock *so, unsigned int *datalen,
 	int padlength;
 
 	if (so->opt.flags & CAN_ISOTP_TX_PADDING) {
-		/* user requested CC/FD N_PDU padding */
+		/* user requested CC/FD PDU padding */
 		*padval = so->opt.txpad_content;
-	} else if (fd_might_pad(so) && *datalen > CAN_ISOTP_MIN_TX_DL) {
-		/* mandatory padding for CAN FD N_PDUs */
+	} else if (fd_pdu(so) && *datalen > CAN_ISOTP_MIN_TX_DL) {
+		/* mandatory padding for CAN FD PDUs */
 		*padval = CAN_ISOTP_DEFAULT_PAD_CONTENT;
 	} else {
 		/* no padding -> zero padlength */

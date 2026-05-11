@@ -270,7 +270,7 @@ static int isotp_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int l
 		return -EINVAL;
 
 	/* Allow padding only for valid CAN CC/FD TX_DL lengths */
-	if (((so->opt.flags & CAN_ISOTP_TX_PADDING) || fd_might_pad(so)) &&
+	if (((so->opt.flags & CAN_ISOTP_TX_PADDING) || fd_pdu(so)) &&
 	    so->tx.ll_dl != padlen(so->tx.ll_dl))
 		return -EINVAL;
 
